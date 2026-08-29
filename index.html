@@ -186,7 +186,7 @@
   }
   .row {
     display: grid;
-    grid-template-columns: 1fr 60px 140px 32px;
+    grid-template-columns: var(--item-col-width, 1fr) 60px var(--amount-col-width, 140px) 32px;
     gap: 0;
     align-items: stretch;
     margin-bottom: 6px;
@@ -196,6 +196,7 @@
     background: var(--header-bg);
   }
   .cell {
+    position: relative;
     border: 1px solid transparent;
     padding: 8px 10px;
     display: flex;
@@ -209,6 +210,30 @@
     justify-content: flex-end;
     text-align: right;
     padding-right: 20px;
+  }
+  .col-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    touch-action: none;
+    z-index: 2;
+  }
+  .col-resize-handle::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 3px;
+    width: 2px;
+    border-radius: 1px;
+    background: transparent;
+  }
+  .col-resize-handle:hover::after,
+  .col-resize-handle.resizing::after {
+    background: var(--accent);
   }
   .label {
     font-weight: 600;
@@ -292,7 +317,7 @@
   }
   .less-item-row {
     display: grid;
-    grid-template-columns: 1fr 60px 140px 32px;
+    grid-template-columns: var(--item-col-width, 1fr) 60px var(--amount-col-width, 140px) 32px;
     align-items: stretch;
   }
   .less-item-row .remove-btn {
@@ -350,7 +375,7 @@
   }
   .summary-row {
     display: grid;
-    grid-template-columns: 1fr 140px;
+    grid-template-columns: 1fr var(--amount-col-width, 140px);
     padding: 6px 0;
     font-size: 15px;
   }
@@ -421,9 +446,15 @@
 
     <!-- Header row: Item / Amount -->
     <div class="row header-row">
-      <div class="cell">Item</div>
+      <div class="cell">
+        Item
+        <div class="col-resize-handle" data-col-var="--item-col-width" data-min="120" data-max="500" title="Drag to resize column"></div>
+      </div>
       <div class="cell spacer-col"></div>
-      <div class="cell amount-header">Amount</div>
+      <div class="cell amount-header">
+        Amount
+        <div class="col-resize-handle" data-col-var="--amount-col-width" data-min="80" data-max="300" title="Drag to resize column"></div>
+      </div>
       <div class="cell"></div>
     </div>
 
@@ -512,6 +543,59 @@
     applyTheme(theme);
     try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch (e) { /* storage unavailable */ }
   });
+
+  // Draggable column widths (Item / Amount), Excel-style. Widths live as CSS custom
+  // properties on <html> so every row (header, Pay, each Less item, and the summary)
+  // picks them up automatically since they all read the same variables.
+  const COL_WIDTH_STORAGE_PREFIX = 'monthlyExpenseColWidth_';
+
+  function restoreColumnWidths() {
+    document.querySelectorAll('.col-resize-handle').forEach(handle => {
+      const varName = handle.dataset.colVar;
+      try {
+        const saved = localStorage.getItem(COL_WIDTH_STORAGE_PREFIX + varName);
+        if (saved) document.documentElement.style.setProperty(varName, saved);
+      } catch (e) { /* storage unavailable */ }
+    });
+  }
+
+  function makeColumnResizable(handle) {
+    const varName = handle.dataset.colVar;
+    const min = parseInt(handle.dataset.min, 10) || 60;
+    const max = parseInt(handle.dataset.max, 10) || 600;
+    let startX = 0;
+    let startWidth = 0;
+
+    function onPointerMove(e) {
+      const delta = e.clientX - startX;
+      const newWidth = Math.max(min, Math.min(max, Math.round(startWidth + delta)));
+      document.documentElement.style.setProperty(varName, newWidth + 'px');
+    }
+
+    function onPointerUp() {
+      handle.classList.remove('resizing');
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      try {
+        const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        localStorage.setItem(COL_WIDTH_STORAGE_PREFIX + varName, val);
+      } catch (e) { /* storage unavailable */ }
+    }
+
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      startX = e.clientX;
+      // Measure the column's current rendered width (works whether it's still the
+      // CSS default like 1fr, or an already-resized px value).
+      startWidth = handle.parentElement.getBoundingClientRect().width;
+      handle.classList.add('resizing');
+      document.addEventListener('pointermove', onPointerMove);
+      document.addEventListener('pointerup', onPointerUp);
+    });
+  }
+
+  restoreColumnWidths();
+  document.querySelectorAll('.col-resize-handle').forEach(makeColumnResizable);
 
   const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   let currentMonth = new Date(); // defaults to the current real month
