@@ -134,7 +134,7 @@
     display: flex;
     gap: 8px;
   }
-  #saveBtn, #loadBtn, #resetBtn {
+  #saveBtn, #loadBtn, #resetBtn, #exportBtn {
     background: var(--accent);
     color: #fff;
     border: none;
@@ -161,6 +161,15 @@
   }
   #resetBtn:hover {
     background: var(--danger);
+    color: #fff;
+  }
+  #exportBtn {
+    background: none;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  #exportBtn:hover {
+    background: var(--muted);
     color: #fff;
   }
   .theme-bar {
@@ -429,6 +438,7 @@
         <button id="resetBtn" type="button" title="Reset back to the original values">&#8635; Reset</button>
         <button id="loadBtn" type="button" title="Load from a saved file">&#128194; Load</button>
         <button id="saveBtn" type="button" title="Save">&#128190; Save</button>
+        <button id="exportBtn" type="button" title="Download a CSV copy of the current values">&#11015; Export</button>
         <!-- No `accept` filter on purpose: Android's file picker unreliably hides CSVs
              (and other files) when any MIME/extension filter is set, even "*/*" combined
              with others. applyLoadedData() validates the content instead. -->
@@ -508,6 +518,7 @@
   const resetBtn = document.getElementById('resetBtn');
   const saveBtn = document.getElementById('saveBtn');
   const loadBtn = document.getElementById('loadBtn');
+  const exportBtn = document.getElementById('exportBtn');
   const loadFileInput = document.getElementById('loadFileInput');
   const sumLessEl = document.getElementById('sumLess');
   const sumRemainingEl = document.getElementById('sumRemaining');
@@ -747,8 +758,26 @@
     return rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
   }
 
-  function downloadCsv(csv, suggestedName) {
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  function buildJsonState() {
+    const items = Array.from(document.querySelectorAll('.less-item-row')).map(row => ({
+      name: row.querySelector('.item-name').value,
+      amount: parseFloat(row.querySelector('.item-amount').value) || 0
+    }));
+    return {
+      month: formatMonth(currentMonth),
+      pay: parseFloat(payAmountInput.value) || 0,
+      items,
+      totalLess: parseFloat(sumLessEl.textContent) || 0,
+      remaining: parseFloat(sumRemainingEl.textContent) || 0
+    };
+  }
+
+  function buildJson() {
+    return JSON.stringify(buildJsonState(), null, 2);
+  }
+
+  function downloadFile(content, suggestedName, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -760,7 +789,7 @@
   }
 
   async function saveFile() {
-    const csv = buildCsv();
+    const json = buildJson();
 
     if (window.showSaveFilePicker) {
       try {
@@ -774,15 +803,15 @@
         }
         if (!handle) {
           // First save (or no reusable handle) — ask where to save and what to call it.
-          const suggestedName = `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
+          const suggestedName = `Monthly Expense - ${formatMonth(currentMonth)}.json`;
           handle = await window.showSaveFilePicker({
             suggestedName,
             startIn: 'documents', // defaults the dialog to the Documents folder
-            types: [{ description: 'CSV file', accept: { 'text/csv': ['.csv'] } }]
+            types: [{ description: 'JSON file', accept: { 'application/json': ['.json'] } }]
           });
         }
         const writable = await handle.createWritable();
-        await writable.write(csv);
+        await writable.write(json);
         await writable.close();
         setCurrentFile(handle.name, handle);
         return;
@@ -793,15 +822,22 @@
     }
 
     // Mobile / fallback (Android, iOS, Firefox): no real file-system access, so this
-    // downloads the CSV — lands in the phone's Downloads folder automatically (Android
+    // downloads the JSON — lands in the phone's Downloads folder automatically (Android
     // doesn't let a web page target Documents specifically), visible in the Files app.
     // Reuses the same filename every time once one has been chosen.
-    const suggestedName = currentFileName || `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
-    downloadCsv(csv, suggestedName);
+    const suggestedName = currentFileName || `Monthly Expense - ${formatMonth(currentMonth)}.json`;
+    downloadFile(json, suggestedName, 'application/json;charset=utf-8;');
     setCurrentFile(suggestedName);
   }
 
   saveBtn.addEventListener('click', saveFile);
+
+  function exportCsvFile() {
+    const csv = buildCsv();
+    downloadFile(csv, `Monthly Expense - ${formatMonth(currentMonth)}.csv`, 'text/csv;charset=utf-8;');
+  }
+
+  exportBtn.addEventListener('click', exportCsvFile);
 
   function parseCsv(text) {
     const rows = [];
@@ -833,6 +869,20 @@
     return rows;
   }
 
+  function applyParsedState({ pay, month, items }) {
+    if (month) {
+      const parsedMonth = parseMonthLabel(month);
+      if (parsedMonth) {
+        currentMonth = parsedMonth;
+        updateMonthLabel();
+      }
+    }
+    payAmountInput.value = formatAmount(pay || 0);
+    lessItemsContainer.innerHTML = '';
+    items.forEach(it => addItem(it.name, it.amount, false));
+    recalc();
+  }
+
   function applyLoadedData(rows) {
     // Since the file picker now accepts any file type (Android hides CSVs otherwise
     // when it's restricted too tightly), sanity-check this actually looks like one of
@@ -843,7 +893,7 @@
     }
 
     let pay = 0;
-    let loadedMonth = null;
+    let month = null;
     const items = [];
     let inLessSection = false;
 
@@ -853,7 +903,7 @@
       const col0 = (r[0] || '').trim();
       const col1 = r[1];
       if (col0 === 'Item' && col1 === 'Amount') continue; // header row
-      if (col0 === 'Month') { loadedMonth = parseMonthLabel(col1); continue; }
+      if (col0 === 'Month') { month = col1; continue; }
       if (col0 === 'Pay') { pay = parseFloat(col1) || 0; continue; }
       if (col0 === 'Less') { inLessSection = true; continue; }
       if (col0 === 'Total Less' || col0 === 'Remaining') { inLessSection = false; continue; }
@@ -862,21 +912,35 @@
       }
     }
 
-    if (loadedMonth) {
-      currentMonth = loadedMonth;
-      updateMonthLabel();
+    applyParsedState({ pay, month, items });
+  }
+
+  function applyLoadedJson(data) {
+    if (!data || typeof data !== 'object' || !Array.isArray(data.items)) {
+      throw new Error('This does not look like a Monthly Expense JSON file.');
     }
-    payAmountInput.value = formatAmount(pay);
-    lessItemsContainer.innerHTML = '';
-    items.forEach(it => addItem(it.name, it.amount, false));
-    recalc();
+    const items = data.items.map(it => ({
+      name: String((it && it.name) || ''),
+      amount: Number(it && it.amount) || 0
+    }));
+    applyParsedState({ pay: Number(data.pay) || 0, month: data.month, items });
   }
 
   async function loadFile(file, handle = null) {
     try {
       const text = await file.text();
-      const rows = parseCsv(text);
-      applyLoadedData(rows);
+
+      // Try JSON first (what Save now produces); fall back to CSV (what Export /
+      // older saved files use) if the content isn't valid JSON at all.
+      let data = null;
+      try { data = JSON.parse(text); } catch (e) { /* not JSON — try CSV below */ }
+
+      if (data !== null) {
+        applyLoadedJson(data);
+      } else {
+        applyLoadedData(parseCsv(text));
+      }
+
       // Track this as the working file so the next Save overwrites it instead of
       // asking for a name again. A handle (from showOpenFilePicker) makes that a true
       // silent overwrite; without one (plain <input type="file">), Save will still
@@ -884,7 +948,7 @@
       setCurrentFile(file.name, handle);
     } catch (err) {
       console.error('Failed to load file:', err);
-      alert('Could not read that file. Please choose a CSV file saved from this page.');
+      alert('Could not read that file. Please choose a CSV or JSON file saved from this page.');
     }
   }
 
