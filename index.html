@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monthly Expense</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --card-bg: #ffffff;
+    --border: #a9c9b0;
+    --header-bg: #e6f4ea;
+    --accent: #217346; /* Excel green */
+    --accent-dark: #14532d;
+    --danger: #c0392b;
+    --text: #1f1f1f;
+    --muted: #4d6b53;
+    --focus-bg: #eaf3ec;
+  }
+  html[data-theme="dark"] {
+    --bg: #1e1e1e;
+    --card-bg: #2a2a2a;
+    --border: #4a4a4a;
+    --header-bg: #2f2f2f;
+    --accent: #2ea043;
+    --accent-dark: #58d16a;
+    --danger: #ff6b6b;
+    --text: #e8e8e8;
+    --muted: #aaaaaa;
+    --focus-bg: #234030;
+  }
+  html[data-theme="blue"] {
+    --bg: #ffffff;
+    --card-bg: #ffffff;
+    --border: #b6c9e0;
+    --header-bg: #eaf1fb;
+    --accent: #1565c0;
+    --accent-dark: #0d47a1;
+    --danger: #c0392b;
+    --text: #1a1a1a;
+    --muted: #55606b;
+    --focus-bg: #e3edfa;
+  }
+  html[data-theme="purple"] {
+    --bg: #ffffff;
+    --card-bg: #ffffff;
+    --border: #c9b8e0;
+    --header-bg: #f1eaf9;
+    --accent: #6a3fa0;
+    --accent-dark: #4b2a75;
+    --danger: #c0392b;
+    --text: #1a1a1a;
+    --muted: #5c5568;
+    --focus-bg: #ede3f7;
+  }
+  html[data-theme="rose"] {
+    --bg: #ffffff;
+    --card-bg: #ffffff;
+    --border: #e3b8c9;
+    --header-bg: #fbeaf0;
+    --accent: #c2185b;
+    --accent-dark: #8e0e40;
+    --danger: #c0392b;
+    --text: #1a1a1a;
+    --muted: #6b555d;
+    --focus-bg: #fbe3ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Aptos Narrow", "Calibri", "Segoe UI", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 32px 16px 60px;
+    display: flex;
+    justify-content: center;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .sheet {
+    width: 100%;
+    max-width: 640px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text);
+  }
+  .title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .title-with-month {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .month-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    background: var(--header-bg);
+  }
+  #monthLabel {
+    font-size: 15px;
+    font-weight: 600;
+    min-width: 72px;
+    text-align: center;
+  }
+  .month-arrows {
+    display: flex;
+    flex-direction: column;
+    line-height: 0;
+  }
+  .month-arrows button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 9px;
+    color: var(--muted);
+    padding: 2px 2px;
+  }
+  .month-arrows button:hover {
+    color: var(--accent-dark);
+  }
+  .title-bar-actions {
+    display: flex;
+    gap: 8px;
+  }
+  #saveBtn, #loadBtn, #resetBtn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #saveBtn:hover, #loadBtn:hover {
+    background: var(--accent-dark);
+  }
+  #loadBtn {
+    background: var(--muted);
+  }
+  #loadBtn:hover {
+    background: var(--text);
+  }
+  #resetBtn {
+    background: none;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+  }
+  #resetBtn:hover {
+    background: var(--danger);
+    color: #fff;
+  }
+  .theme-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .theme-bar label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .theme-bar select {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card-bg);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 60px 140px 32px;
+    gap: 0;
+    align-items: stretch;
+    margin-bottom: 6px;
+  }
+  .header-row {
+    font-weight: 600;
+    background: var(--header-bg);
+  }
+  .cell {
+    border: 1px solid transparent;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+  }
+  .header-row .cell {
+    border: 1px solid var(--border);
+  }
+  .amount-header {
+    justify-content: flex-end;
+    text-align: right;
+    padding-right: 20px;
+  }
+  .label {
+    font-weight: 600;
+  }
+  .boxed {
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    padding: 0;
+  }
+  .boxed input {
+    width: 100%;
+    height: 100%;
+    border: none;
+    outline: none;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    background: transparent;
+    color: var(--text);
+  }
+  .boxed input:focus {
+    background: var(--focus-bg);
+  }
+  .boxed.locked {
+    background: var(--header-bg);
+  }
+  .boxed.locked input {
+    color: var(--muted);
+    cursor: default;
+  }
+  .boxed.locked input:focus {
+    background: transparent;
+  }
+  .amount-input {
+    text-align: right;
+  }
+  .spacer-col { }
+  .pay-row .boxed input {
+    font-weight: 600;
+  }
+  #payAmount {
+    text-align: right;
+  }
+  .pay-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .pay-box input {
+    padding-right: 30px;
+  }
+  #togglePayBtn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px;
+    opacity: 0.55;
+    line-height: 1;
+  }
+  #togglePayBtn:hover {
+    opacity: 1;
+  }
+  .less-section {
+    margin-top: 18px;
+  }
+  .less-title-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .less-items {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .less-item-row {
+    display: grid;
+    grid-template-columns: 1fr 60px 140px 32px;
+    align-items: stretch;
+  }
+  .less-item-row .remove-btn {
+    background: none;
+    border: none;
+    color: var(--danger);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+  }
+  .less-item-row .remove-btn:hover {
+    color: #ff0000;
+  }
+  .add-btn-wrap {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 10px;
+  }
+  #addItemBtn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  #addItemBtn:hover {
+    background: var(--accent-dark);
+  }
+  .summary {
+    margin-top: 28px;
+    border-top: 2px solid var(--border);
+    padding-top: 14px;
+  }
+  .summary-row {
+    display: grid;
+    grid-template-columns: 1fr 140px;
+    padding: 6px 0;
+    font-size: 15px;
+  }
+  .summary-row .label {
+    text-align: right;
+    padding-right: 12px;
+    color: var(--muted);
+  }
+  .summary-row .value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .summary-row.total {
+    font-weight: 700;
+    font-size: 17px;
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+    margin-top: 4px;
+  }
+  .summary-row.total .value.negative {
+    color: var(--danger);
+  }
+  .summary-row.total .value.positive {
+    color: var(--accent-dark);
+  }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="title-bar">
+      <div class="title-with-month">
+        <h1>Monthly Expense</h1>
+        <div class="month-control">
+          <span id="monthLabel">Aug 2026</span>
+          <div class="month-arrows">
+            <button id="monthUpBtn" type="button" title="Next month">&#9650;</button>
+            <button id="monthDownBtn" type="button" title="Previous month">&#9660;</button>
+          </div>
+        </div>
+      </div>
+      <div class="title-bar-actions">
+        <button id="resetBtn" type="button" title="Reset back to the original values">&#8635; Reset</button>
+        <button id="loadBtn" type="button" title="Load from a saved file">&#128194; Load</button>
+        <button id="saveBtn" type="button" title="Save to a file">&#128190; Save</button>
+        <input type="file" id="loadFileInput" accept=".csv,text/csv" style="display:none">
+      </div>
+    </div>
+
+    <div class="theme-bar">
+      <label for="themeSelect">Colour Theme</label>
+      <select id="themeSelect">
+        <option value="default">Excel Green (Default)</option>
+        <option value="dark">Dark</option>
+        <option value="blue">Blue</option>
+        <option value="purple">Purple</option>
+        <option value="rose">Rose</option>
+      </select>
+    </div>
+
+    <!-- Header row: Item / Amount -->
+    <div class="row header-row">
+      <div class="cell">Item</div>
+      <div class="cell spacer-col"></div>
+      <div class="cell amount-header">Amount</div>
+      <div class="cell"></div>
+    </div>
+
+    <!-- Pay row -->
+    <div class="row pay-row">
+      <div class="cell label">Pay</div>
+      <div class="cell spacer-col"></div>
+      <div class="cell boxed pay-box">
+        <input type="password" id="payAmount" placeholder="0.00" step="0.01" value="6686">
+        <button type="button" id="togglePayBtn" title="Show/Hide amount">&#128065;</button>
+      </div>
+      <div class="cell"></div>
+    </div>
+
+    <!-- Less section -->
+    <div class="less-section">
+      <div class="less-title-row">
+        <div class="cell label">Less</div>
+      </div>
+      <div class="less-items" id="lessItems">
+        <!-- less item rows injected here -->
+      </div>
+      <div class="add-btn-wrap">
+        <button id="addItemBtn" title="Add expense item">+</button>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary">
+      <div class="summary-row">
+        <div class="label">Total Less</div>
+        <div class="value" id="sumLess">0.00</div>
+      </div>
+      <div class="summary-row total">
+        <div class="label">Remaining</div>
+        <div class="value" id="sumRemaining">0.00</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const payAmountInput = document.getElementById('payAmount');
+  const togglePayBtn = document.getElementById('togglePayBtn');
+  const lessItemsContainer = document.getElementById('lessItems');
+  const addItemBtn = document.getElementById('addItemBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const saveBtn = document.getElementById('saveBtn');
+  const loadBtn = document.getElementById('loadBtn');
+  const loadFileInput = document.getElementById('loadFileInput');
+  const sumLessEl = document.getElementById('sumLess');
+  const sumRemainingEl = document.getElementById('sumRemaining');
+  const monthLabel = document.getElementById('monthLabel');
+  const monthUpBtn = document.getElementById('monthUpBtn');
+  const monthDownBtn = document.getElementById('monthDownBtn');
+  const themeSelect = document.getElementById('themeSelect');
+
+  const THEME_STORAGE_KEY = 'monthlyExpenseTheme';
+
+  function applyTheme(theme) {
+    if (theme === 'default') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }
+
+  let savedTheme = 'default';
+  try { savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'default'; } catch (e) { /* storage unavailable */ }
+  themeSelect.value = savedTheme;
+  applyTheme(savedTheme);
+
+  themeSelect.addEventListener('change', () => {
+    const theme = themeSelect.value;
+    applyTheme(theme);
+    try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch (e) { /* storage unavailable */ }
+  });
+
+  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  let currentMonth = new Date(); // defaults to the current real month
+
+  function formatMonth(date) {
+    return MONTH_NAMES[date.getMonth()] + ' ' + date.getFullYear();
+  }
+
+  function parseMonthLabel(str) {
+    const parts = String(str).trim().split(/\s+/);
+    if (parts.length !== 2) return null;
+    const idx = MONTH_NAMES.indexOf(parts[0]);
+    const year = parseInt(parts[1], 10);
+    if (idx === -1 || isNaN(year)) return null;
+    return new Date(year, idx, 1);
+  }
+
+  function updateMonthLabel() {
+    monthLabel.textContent = formatMonth(currentMonth);
+  }
+
+  function changeMonth(delta) {
+    currentMonth.setMonth(currentMonth.getMonth() + delta);
+    updateMonthLabel();
+  }
+
+  monthUpBtn.addEventListener('click', () => changeMonth(1));
+  monthDownBtn.addEventListener('click', () => changeMonth(-1));
+  updateMonthLabel();
+
+  // Fixed/default recurring expense items. Name is locked; amount stays editable.
+  const fixedItems = [
+    { name: 'Syg monthly', amount: 1000 },
+    { name: 'Mak monthly', amount: 300 },
+    { name: 'Ayah monthly', amount: 300 },
+    { name: 'M1 Broadband', amount: 29.90 },
+    { name: 'Simba Broadband', amount: 29.99 },
+    { name: 'SCC', amount: 71.30 },
+    { name: 'Sedekah', amount: 200 },
+    { name: 'SP (Ayah)', amount: 130 },
+    { name: 'SP (Own)', amount: 150 },
+    { name: 'Saving', amount: 2000 },
+    { name: 'Mobile (Mak BR/Mak CC/Ayah)', amount: 15 },
+    { name: 'Mobile (Farid/Niza)', amount: 21.60 }
+  ];
+
+  function makeRow(name = '', amount = 0, fixed = false) {
+    const row = document.createElement('div');
+    row.className = 'less-item-row';
+    row.innerHTML = `
+      <div class="cell boxed${fixed ? ' locked' : ''}">
+        <input type="text" class="item-name" placeholder="Expense item" value="${name}" ${fixed ? 'readonly' : ''}>
+      </div>
+      <div class="cell spacer-col"></div>
+      <div class="cell boxed">
+        <input type="number" class="item-amount amount-input" placeholder="0.00" step="0.01" value="${Number(amount).toFixed(2)}">
+      </div>
+      ${fixed ? '<div></div>' : '<button class="remove-btn" title="Remove item">&times;</button>'}
+    `;
+    row.querySelector('.item-amount').addEventListener('input', recalc);
+    const removeBtn = row.querySelector('.remove-btn');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', () => {
+        row.remove();
+        recalc();
+      });
+    }
+    return row;
+  }
+
+  function addItem(name = '', amount = 0, fixed = false) {
+    const row = makeRow(name, amount, fixed);
+    lessItemsContainer.appendChild(row);
+    recalc();
+  }
+
+  function recalc() {
+    const pay = parseFloat(payAmountInput.value) || 0;
+    const amounts = Array.from(document.querySelectorAll('.item-amount'))
+      .map(el => parseFloat(el.value) || 0);
+    const totalLess = amounts.reduce((a, b) => a + b, 0);
+    const remaining = pay - totalLess;
+
+    sumLessEl.textContent = totalLess.toFixed(2);
+    sumRemainingEl.textContent = remaining.toFixed(2);
+    sumRemainingEl.className = 'value ' + (remaining < 0 ? 'negative' : 'positive');
+  }
+
+  payAmountInput.addEventListener('input', recalc);
+  addItemBtn.addEventListener('click', () => addItem());
+  function setPayVisible(visible) {
+    payAmountInput.type = visible ? 'text' : 'password';
+    togglePayBtn.innerHTML = visible ? '&#128064;' : '&#128065;';
+  }
+
+  let payPinnedVisible = false; // true once the user clicks the eye to keep it shown
+
+  togglePayBtn.addEventListener('click', () => {
+    payPinnedVisible = !payPinnedVisible;
+    setPayVisible(payPinnedVisible);
+  });
+
+  // Auto-reveal the amount while editing so you can see what you're typing,
+  // then hide it again once you click away (unless pinned visible via the eye button).
+  payAmountInput.addEventListener('focus', () => {
+    if (!payPinnedVisible) setPayVisible(true);
+  });
+  payAmountInput.addEventListener('blur', () => {
+    if (!payPinnedVisible) setPayVisible(false);
+  });
+
+  function csvEscape(value) {
+    const str = String(value);
+    return /[",\r\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  }
+
+  function buildCsv() {
+    const rows = [['Item', 'Amount']];
+    rows.push(['Month', formatMonth(currentMonth)]);
+    rows.push(['Pay', (parseFloat(payAmountInput.value) || 0).toFixed(2)]);
+    rows.push([]);
+    rows.push(['Less', '']);
+    document.querySelectorAll('.less-item-row').forEach(row => {
+      const name = row.querySelector('.item-name').value;
+      const amount = parseFloat(row.querySelector('.item-amount').value) || 0;
+      rows.push([name, amount.toFixed(2)]);
+    });
+    rows.push([]);
+    rows.push(['Total Less', sumLessEl.textContent]);
+    rows.push(['Remaining', sumRemainingEl.textContent]);
+    return rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+  }
+
+  async function saveFile() {
+    const csv = buildCsv();
+    const suggestedName = `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
+
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [{ description: 'CSV file', accept: { 'text/csv': ['.csv'] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(csv);
+        await writable.close();
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // user cancelled the picker
+        console.error('Save picker failed, falling back to download:', err);
+      }
+    }
+
+    // Fallback for browsers without the File System Access API (e.g. Firefox, Safari):
+    // triggers a normal download; filename is editable, folder follows browser download settings.
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = suggestedName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  saveBtn.addEventListener('click', saveFile);
+
+  function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else { inQuotes = false; }
+        } else {
+          field += c;
+        }
+      } else if (c === '"') {
+        inQuotes = true;
+      } else if (c === ',') {
+        row.push(field); field = '';
+      } else if (c === '\r') {
+        // skip, \n handles the line break
+      } else if (c === '\n') {
+        row.push(field); rows.push(row); row = []; field = '';
+      } else {
+        field += c;
+      }
+    }
+    if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  function applyLoadedData(rows) {
+    let pay = 0;
+    let loadedMonth = null;
+    const items = [];
+    let inLessSection = false;
+
+    for (const r of rows) {
+      const isBlank = r.length === 0 || (r.length === 1 && r[0].trim() === '');
+      if (isBlank) { inLessSection = false; continue; }
+      const col0 = (r[0] || '').trim();
+      const col1 = r[1];
+      if (col0 === 'Item' && col1 === 'Amount') continue; // header row
+      if (col0 === 'Month') { loadedMonth = parseMonthLabel(col1); continue; }
+      if (col0 === 'Pay') { pay = parseFloat(col1) || 0; continue; }
+      if (col0 === 'Less') { inLessSection = true; continue; }
+      if (col0 === 'Total Less' || col0 === 'Remaining') { inLessSection = false; continue; }
+      if (inLessSection && col0) {
+        items.push({ name: col0, amount: parseFloat(col1) || 0 });
+      }
+    }
+
+    if (loadedMonth) {
+      currentMonth = loadedMonth;
+      updateMonthLabel();
+    }
+    payAmountInput.value = pay.toFixed(2);
+    lessItemsContainer.innerHTML = '';
+    items.forEach(it => addItem(it.name, it.amount, false));
+    recalc();
+  }
+
+  async function loadFile(file) {
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+      applyLoadedData(rows);
+    } catch (err) {
+      console.error('Failed to load file:', err);
+      alert('Could not read that file. Please choose a CSV file saved from this page.');
+    }
+  }
+
+  loadBtn.addEventListener('click', () => loadFileInput.click());
+  loadFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) loadFile(file);
+    loadFileInput.value = ''; // allow re-selecting the same file later
+  });
+
+  // load the fixed/default items first (name locked, amount editable)
+  fixedItems.forEach(item => addItem(item.name, item.amount, true));
+
+  const DEFAULT_PAY = 6686;
+
+  function resetToDefaults() {
+    if (!confirm('Reset Pay and all Less items back to their original values? Any changes you made will be lost.')) return;
+
+    payAmountInput.value = DEFAULT_PAY.toFixed(2);
+    payPinnedVisible = false;
+    setPayVisible(false);
+
+    lessItemsContainer.innerHTML = '';
+    fixedItems.forEach(item => addItem(item.name, item.amount, true));
+
+    currentMonth = new Date();
+    updateMonthLabel();
+
+    recalc();
+  }
+
+  resetBtn.addEventListener('click', resetToDefaults);
+</script>
+</body>
+</html>
