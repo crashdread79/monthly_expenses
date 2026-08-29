@@ -310,6 +310,16 @@
   .less-item-row .remove-btn:hover {
     color: #ff0000;
   }
+  .less-item-row.row-excluded {
+    opacity: 0.5;
+    transition: opacity 0.15s ease;
+  }
+  .less-item-row.row-excluded:focus-within {
+    opacity: 1;
+  }
+  .less-item-row.row-excluded .item-name {
+    font-style: italic;
+  }
   .add-btn-wrap {
     display: flex;
     justify-content: flex-start;
@@ -533,31 +543,37 @@
   updateMonthLabel();
 
   // Fixed/default recurring expense items. Name is locked; amount stays editable.
+  // `excluded: true` grays the item out and leaves it out of the Total Less / Remaining calculation.
   const fixedItems = [
+    { name: 'M1 Broadband', amount: 29.90, excluded: true },
+    { name: 'Simba Broadband', amount: 29.99, excluded: true },
+    { name: 'SP (Ayah)', amount: 130, excluded: true },
+    { name: 'SP (Own)', amount: 150, excluded: true },
     { name: 'Syg monthly', amount: 1000 },
     { name: 'Mak monthly', amount: 300 },
     { name: 'Ayah monthly', amount: 300 },
-    { name: 'M1 Broadband', amount: 29.90 },
-    { name: 'Simba Broadband', amount: 29.99 },
     { name: 'SCC', amount: 71.30 },
     { name: 'Sedekah', amount: 200 },
-    { name: 'SP (Ayah)', amount: 130 },
-    { name: 'SP (Own)', amount: 150 },
     { name: 'Saving', amount: 2000 },
     { name: 'Mobile (Mak BR/Mak CC/Ayah)', amount: 15 },
-    { name: 'Mobile (Farid/Niza)', amount: 21.60 }
+    { name: 'Mobile (Farid/Niza)', amount: 21.60 },
+    { name: 'OCBC CC', amount: 0 },
+    { name: 'Citibank CC', amount: 0 },
+    { name: 'POSB CC', amount: 0 },
+    { name: 'Maribank CC', amount: 0 },
+    { name: 'HSBC CC', amount: 0 }
   ];
 
-  function makeRow(name = '', amount = 0, fixed = false) {
+  function makeRow(name = '', amount = 0, fixed = false, excluded = false) {
     const row = document.createElement('div');
-    row.className = 'less-item-row';
+    row.className = 'less-item-row' + (excluded ? ' row-excluded' : '');
     row.innerHTML = `
       <div class="cell boxed${fixed ? ' locked' : ''}">
         <input type="text" class="item-name" placeholder="Expense item" value="${name}" ${fixed ? 'readonly' : ''}>
       </div>
       <div class="cell spacer-col"></div>
       <div class="cell boxed">
-        <input type="number" class="item-amount amount-input" placeholder="0.00" step="0.01" value="${Number(amount).toFixed(2)}">
+        <input type="number" class="item-amount amount-input${excluded ? ' excluded-amount' : ''}" placeholder="0.00" step="0.01" value="${Number(amount).toFixed(2)}" title="${excluded ? 'Excluded from Total Less / Remaining' : ''}">
       </div>
       ${fixed ? '<div></div>' : '<button class="remove-btn" title="Remove item">&times;</button>'}
     `;
@@ -572,15 +588,15 @@
     return row;
   }
 
-  function addItem(name = '', amount = 0, fixed = false) {
-    const row = makeRow(name, amount, fixed);
+  function addItem(name = '', amount = 0, fixed = false, excluded = false) {
+    const row = makeRow(name, amount, fixed, excluded);
     lessItemsContainer.appendChild(row);
     recalc();
   }
 
   function recalc() {
     const pay = parseFloat(payAmountInput.value) || 0;
-    const amounts = Array.from(document.querySelectorAll('.item-amount'))
+    const amounts = Array.from(document.querySelectorAll('.item-amount:not(.excluded-amount)'))
       .map(el => parseFloat(el.value) || 0);
     const totalLess = amounts.reduce((a, b) => a + b, 0);
     const remaining = pay - totalLess;
@@ -788,7 +804,7 @@
   });
 
   // load the fixed/default items first (name locked, amount editable)
-  fixedItems.forEach(item => addItem(item.name, item.amount, true));
+  fixedItems.forEach(item => addItem(item.name, item.amount, true, !!item.excluded));
 
   const DEFAULT_PAY = 6686;
 
@@ -800,7 +816,7 @@
     setPayVisible(false);
 
     lessItemsContainer.innerHTML = '';
-    fixedItems.forEach(item => addItem(item.name, item.amount, true));
+    fixedItems.forEach(item => addItem(item.name, item.amount, true, !!item.excluded));
 
     currentMonth = new Date();
     updateMonthLabel();
