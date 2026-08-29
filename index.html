@@ -611,6 +611,13 @@
   restoreColumnWidths();
   document.querySelectorAll('.col-resize-handle').forEach(makeColumnResizable);
 
+  // Whole-dollar amounts display without cents (e.g. "1000"); anything with cents
+  // keeps 2 decimal places (e.g. "29.90"). Doesn't affect saved CSV data, only display.
+  function formatAmount(value) {
+    const num = Number(value) || 0;
+    return Number.isInteger(num) ? String(num) : num.toFixed(2);
+  }
+
   const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   let currentMonth = new Date(); // defaults to the current real month
 
@@ -671,7 +678,7 @@
       </div>
       <div class="cell spacer-col"></div>
       <div class="cell boxed">
-        <input type="number" class="item-amount amount-input${excluded ? ' excluded-amount' : ''}" placeholder="0.00" step="0.01" value="${Number(amount).toFixed(2)}" title="${excluded ? 'Excluded from Total Less / Remaining' : ''}">
+        <input type="number" class="item-amount amount-input${excluded ? ' excluded-amount' : ''}" placeholder="0.00" step="0.01" value="${formatAmount(amount)}" title="${excluded ? 'Excluded from Total Less / Remaining' : ''}">
       </div>
       ${fixed ? '<div></div>' : '<button class="remove-btn" title="Remove item">&times;</button>'}
     `;
@@ -701,8 +708,8 @@
     const totalLess = amounts.reduce((a, b) => a + b, 0);
     const remaining = pay - totalLess;
 
-    sumLessEl.textContent = totalLess.toFixed(2);
-    sumRemainingEl.textContent = remaining.toFixed(2);
+    sumLessEl.textContent = formatAmount(totalLess);
+    sumRemainingEl.textContent = formatAmount(remaining);
     sumRemainingEl.className = 'value ' + (remaining < 0 ? 'negative' : 'positive');
   }
 
@@ -923,7 +930,7 @@
       currentMonth = loadedMonth;
       updateMonthLabel();
     }
-    payAmountInput.value = pay.toFixed(2);
+    payAmountInput.value = formatAmount(pay);
     lessItemsContainer.innerHTML = '';
     items.forEach(it => addItem(it.name, it.amount, false));
     recalc();
@@ -990,7 +997,7 @@
   function resetToDefaults() {
     if (!confirm('Reset Pay and all Less items back to their original values? Any changes you made will be lost.')) return;
 
-    payAmountInput.value = DEFAULT_PAY.toFixed(2);
+    payAmountInput.value = formatAmount(DEFAULT_PAY);
     payPinnedVisible = false;
     setPayVisible(false);
 
