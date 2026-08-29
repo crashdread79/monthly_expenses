@@ -657,15 +657,25 @@
     if (window.showSaveFilePicker) {
       try {
         let handle = currentFileHandle;
+
         if (handle) {
-          // Reusing a handle from an earlier save/load — make sure we still have write access.
-          const perm = await handle.queryPermission({ mode: 'readwrite' });
-          if (perm !== 'granted' && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') {
-            handle = null; // permission lost — fall through and ask for a location again
+          // There's already a working file — ask whether to overwrite it or save as a new one.
+          const overwrite = confirm(
+            `Overwrite "${currentFileName}"?\n\nClick OK to overwrite this file, or Cancel to save as a new file.`
+          );
+          if (!overwrite) {
+            handle = null; // fall through to Save As below
+          } else {
+            // Reusing the handle — make sure we still have write access.
+            const perm = await handle.queryPermission({ mode: 'readwrite' });
+            if (perm !== 'granted' && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') {
+              handle = null; // permission lost — fall through and ask for a location again
+            }
           }
         }
+
         if (!handle) {
-          // First save (or no reusable handle) — ask where to save and what to call it.
+          // No working file yet, or the user chose "save as new" — ask where/what to call it.
           const suggestedName = `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
           handle = await window.showSaveFilePicker({
             suggestedName,
@@ -684,10 +694,20 @@
     }
 
     // Fallback for browsers without the File System Access API (e.g. Firefox, Safari):
-    // can't silently overwrite a file, so this triggers a normal download using the
-    // same filename every time (once one has been chosen), which the browser downloads
-    // folder treats as a straightforward re-save/overwrite.
-    const suggestedName = currentFileName || `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
+    // can't silently overwrite a file, so use a confirm/prompt to pick a filename,
+    // then trigger a normal download.
+    let suggestedName = currentFileName || `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
+    if (currentFileName) {
+      const overwrite = confirm(
+        `Overwrite "${currentFileName}"?\n\nClick OK to save with the same name, or Cancel to save as a new file.`
+      );
+      if (!overwrite) {
+        const newName = prompt('Enter a file name to save as:', `Monthly Expense - ${formatMonth(currentMonth)}.csv`);
+        if (newName === null) return; // user cancelled
+        suggestedName = newName.trim() || suggestedName;
+        if (!/\.csv$/i.test(suggestedName)) suggestedName += '.csv';
+      }
+    }
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
