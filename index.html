@@ -679,6 +679,8 @@
     const removeBtn = row.querySelector('.remove-btn');
     if (removeBtn) {
       removeBtn.addEventListener('click', () => {
+        const itemName = row.querySelector('.item-name').value.trim() || 'this item';
+        if (!confirm(`Delete "${itemName}"?`)) return;
         row.remove();
         recalc();
       });
