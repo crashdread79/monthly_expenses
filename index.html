@@ -134,7 +134,7 @@
     display: flex;
     gap: 8px;
   }
-  #saveBtn, #loadBtn, #resetBtn {
+  #saveBtn, #loadBtn, #resetBtn, #exportBtn {
     background: var(--accent);
     color: #fff;
     border: none;
@@ -161,6 +161,15 @@
   }
   #resetBtn:hover {
     background: var(--danger);
+    color: #fff;
+  }
+  #exportBtn {
+    background: none;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  #exportBtn:hover {
+    background: var(--muted);
     color: #fff;
   }
   .theme-bar {
@@ -428,7 +437,8 @@
       <div class="title-bar-actions">
         <button id="resetBtn" type="button" title="Reset back to the original values">&#8635; Reset</button>
         <button id="loadBtn" type="button" title="Load from a saved file">&#128194; Load</button>
-        <button id="saveBtn" type="button" title="Save to a file">&#128190; Save</button>
+        <button id="saveBtn" type="button" title="Save">&#128190; Save</button>
+        <button id="exportBtn" type="button" title="Download a CSV copy of the current values">&#11015; Export</button>
         <input type="file" id="loadFileInput" accept=".csv,text/csv" style="display:none">
       </div>
     </div>
@@ -505,6 +515,7 @@
   const resetBtn = document.getElementById('resetBtn');
   const saveBtn = document.getElementById('saveBtn');
   const loadBtn = document.getElementById('loadBtn');
+  const exportBtn = document.getElementById('exportBtn');
   const loadFileInput = document.getElementById('loadFileInput');
   const sumLessEl = document.getElementById('sumLess');
   const sumRemainingEl = document.getElementById('sumRemaining');
@@ -735,6 +746,53 @@
     return rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
   }
 
+  // --- Private in-browser storage: used where there's no real file-system access
+  // (Android, iOS, Firefox — the File System Access API is desktop Chrome/Edge only).
+  // This lets Save silently overwrite the SAME private slot every time, no dialogs,
+  // instead of triggering a fresh download each time.
+  const PRIVATE_FILE_NAME = 'monthly-expense-autosave.csv';
+  const PRIVATE_STORAGE_KEY = 'monthlyExpenseAutosaveCsv';
+
+  async function saveToPrivateStorage(csv) {
+    if (navigator.storage && navigator.storage.getDirectory) {
+      try {
+        const root = await navigator.storage.getDirectory();
+        const fileHandle = await root.getFileHandle(PRIVATE_FILE_NAME, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(csv);
+        await writable.close();
+        return true;
+      } catch (err) {
+        console.error('Private file storage (OPFS) save failed, falling back to localStorage:', err);
+      }
+    }
+    try {
+      localStorage.setItem(PRIVATE_STORAGE_KEY, csv);
+      return true;
+    } catch (err) {
+      console.error('localStorage save failed:', err);
+      return false;
+    }
+  }
+
+  async function loadFromPrivateStorage() {
+    if (navigator.storage && navigator.storage.getDirectory) {
+      try {
+        const root = await navigator.storage.getDirectory();
+        const fileHandle = await root.getFileHandle(PRIVATE_FILE_NAME, { create: false });
+        const file = await fileHandle.getFile();
+        return await file.text();
+      } catch (err) {
+        // no private file saved yet, or OPFS unavailable for reading — fall through
+      }
+    }
+    try {
+      return localStorage.getItem(PRIVATE_STORAGE_KEY);
+    } catch (err) {
+      return null;
+    }
+  }
+
   async function saveFile() {
     const csv = buildCsv();
 
@@ -763,16 +821,27 @@
         return;
       } catch (err) {
         if (err.name === 'AbortError') return; // user cancelled the picker
-        console.error('Save picker failed, falling back to download:', err);
+        console.error('Save picker failed, falling back to on-device save:', err);
       }
     }
 
-    // Fallback for browsers without the File System Access API — this is the path Android
-    // (and iOS/Firefox) always takes, since that API is desktop-only. There's no real file
-    // handle to overwrite here, so this just re-downloads using the same filename every time
-    // once one has been chosen, which is as close to "save to the same file" as the platform
-    // allows.
-    const suggestedName = currentFileName || `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
+    // Mobile / fallback (Android, iOS, Firefox): no real file-system access, so save
+    // directly into private in-browser storage instead of downloading — this CAN be
+    // silently overwritten every time, with no dialogs, unlike a plain download.
+    // Use the Export button to get an actual downloadable CSV file when you need one.
+    const ok = await saveToPrivateStorage(csv);
+    if (ok) {
+      setCurrentFile('Saved on this device');
+    } else {
+      alert('Could not save on this device. Storage may be full or restricted by your browser.');
+    }
+  }
+
+  saveBtn.addEventListener('click', saveFile);
+
+  function exportCsvFile() {
+    const csv = buildCsv();
+    const suggestedName = `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -782,10 +851,9 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    setCurrentFile(suggestedName);
   }
 
-  saveBtn.addEventListener('click', saveFile);
+  exportBtn.addEventListener('click', exportCsvFile);
 
   function parseCsv(text) {
     const rows = [];
@@ -890,6 +958,19 @@
 
   // load the fixed/default items first (name locked, amount editable)
   fixedItems.forEach(item => addItem(item.name, item.amount, true, !!item.excluded));
+
+  // On mobile/fallback browsers (no File System Access API), automatically restore
+  // whatever was last saved to private in-browser storage, so re-opening the page
+  // picks up where you left off — mirroring what a real "open my saved file" would do.
+  if (!window.showSaveFilePicker) {
+    (async () => {
+      const savedCsv = await loadFromPrivateStorage();
+      if (savedCsv) {
+        applyLoadedData(parseCsv(savedCsv));
+        setCurrentFile('Saved on this device');
+      }
+    })();
+  }
 
   const DEFAULT_PAY = 6686;
 
