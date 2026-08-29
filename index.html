@@ -439,7 +439,7 @@
         <button id="loadBtn" type="button" title="Load from a saved file">&#128194; Load</button>
         <button id="saveBtn" type="button" title="Save">&#128190; Save</button>
         <button id="exportBtn" type="button" title="Download a CSV copy of the current values">&#11015; Export</button>
-        <input type="file" id="loadFileInput" accept=".csv,text/csv" style="display:none">
+        <input type="file" id="loadFileInput" accept=".csv,text/csv,text/plain,text/comma-separated-values,application/vnd.ms-excel,application/csv,*/*" style="display:none">
       </div>
     </div>
 
@@ -886,6 +886,14 @@
   }
 
   function applyLoadedData(rows) {
+    // Since the file picker now accepts any file type (Android hides CSVs otherwise
+    // when it's restricted too tightly), sanity-check this actually looks like one of
+    // our saved files before touching anything.
+    const header = rows[0] || [];
+    if ((header[0] || '').trim() !== 'Item' || (header[1] || '').trim() !== 'Amount') {
+      throw new Error('This does not look like a Monthly Expense CSV file.');
+    }
+
     let pay = 0;
     let loadedMonth = null;
     const items = [];
