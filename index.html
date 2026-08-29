@@ -366,6 +366,15 @@
   .summary-row.total .value.positive {
     color: var(--accent-dark);
   }
+  .file-status {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .file-status span {
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
@@ -443,6 +452,8 @@
         <div class="value" id="sumRemaining">0.00</div>
       </div>
     </div>
+
+    <div class="file-status">File: <span id="currentFileNameDisplay">Untitled (not saved yet)</span></div>
   </div>
 
 <script>
@@ -456,6 +467,16 @@
   const loadFileInput = document.getElementById('loadFileInput');
   const sumLessEl = document.getElementById('sumLess');
   const sumRemainingEl = document.getElementById('sumRemaining');
+  const currentFileNameDisplay = document.getElementById('currentFileNameDisplay');
+
+  let currentFileHandle = null; // File System Access API handle, when available
+  let currentFileName = null;
+
+  function setCurrentFile(name, handle = null) {
+    currentFileName = name;
+    currentFileHandle = handle;
+    currentFileNameDisplay.textContent = name || 'Untitled (not saved yet)';
+  }
   const monthLabel = document.getElementById('monthLabel');
   const monthUpBtn = document.getElementById('monthUpBtn');
   const monthDownBtn = document.getElementById('monthDownBtn');
@@ -616,17 +637,29 @@
 
   async function saveFile() {
     const csv = buildCsv();
-    const suggestedName = `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
 
     if (window.showSaveFilePicker) {
       try {
-        const handle = await window.showSaveFilePicker({
-          suggestedName,
-          types: [{ description: 'CSV file', accept: { 'text/csv': ['.csv'] } }]
-        });
+        let handle = currentFileHandle;
+        if (handle) {
+          // Reusing a handle from an earlier save/load — make sure we still have write access.
+          const perm = await handle.queryPermission({ mode: 'readwrite' });
+          if (perm !== 'granted' && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') {
+            handle = null; // permission lost — fall through and ask for a location again
+          }
+        }
+        if (!handle) {
+          // First save (or no reusable handle) — ask where to save and what to call it.
+          const suggestedName = `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
+          handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [{ description: 'CSV file', accept: { 'text/csv': ['.csv'] } }]
+          });
+        }
         const writable = await handle.createWritable();
         await writable.write(csv);
         await writable.close();
+        setCurrentFile(handle.name, handle);
         return;
       } catch (err) {
         if (err.name === 'AbortError') return; // user cancelled the picker
@@ -635,7 +668,10 @@
     }
 
     // Fallback for browsers without the File System Access API (e.g. Firefox, Safari):
-    // triggers a normal download; filename is editable, folder follows browser download settings.
+    // can't silently overwrite a file, so this triggers a normal download using the
+    // same filename every time (once one has been chosen), which the browser downloads
+    // folder treats as a straightforward re-save/overwrite.
+    const suggestedName = currentFileName || `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -645,6 +681,7 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    setCurrentFile(suggestedName);
   }
 
   saveBtn.addEventListener('click', saveFile);
@@ -710,18 +747,40 @@
     recalc();
   }
 
-  async function loadFile(file) {
+  async function loadFile(file, handle = null) {
     try {
       const text = await file.text();
       const rows = parseCsv(text);
       applyLoadedData(rows);
+      // Track this as the working file so the next Save overwrites it instead of
+      // asking for a name again. A handle (from showOpenFilePicker) makes that a true
+      // silent overwrite; without one (plain <input type="file">), Save will still
+      // reuse the same filename but has to ask for a location once via the picker.
+      setCurrentFile(file.name, handle);
     } catch (err) {
       console.error('Failed to load file:', err);
       alert('Could not read that file. Please choose a CSV file saved from this page.');
     }
   }
 
-  loadBtn.addEventListener('click', () => loadFileInput.click());
+  async function pickAndLoadFile() {
+    if (window.showOpenFilePicker) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          types: [{ description: 'CSV file', accept: { 'text/csv': ['.csv'] } }]
+        });
+        const file = await handle.getFile();
+        await loadFile(file, handle);
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // user cancelled the picker
+        console.error('Open picker failed, falling back to file input:', err);
+      }
+    }
+    loadFileInput.click();
+  }
+
+  loadBtn.addEventListener('click', pickAndLoadFile);
   loadFileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) loadFile(file);
