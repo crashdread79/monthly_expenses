@@ -439,7 +439,10 @@
         <button id="loadBtn" type="button" title="Load from a saved file">&#128194; Load</button>
         <button id="saveBtn" type="button" title="Save">&#128190; Save</button>
         <button id="exportBtn" type="button" title="Download a CSV copy of the current values">&#11015; Export</button>
-        <input type="file" id="loadFileInput" accept=".csv,text/csv,text/plain,text/comma-separated-values,application/vnd.ms-excel,application/csv,*/*" style="display:none">
+        <!-- No `accept` filter on purpose: Android's file picker unreliably hides CSVs
+             (and other files) when any MIME/extension filter is set, even "*/*" combined
+             with others. applyLoadedData() validates the content instead. -->
+        <input type="file" id="loadFileInput" style="display:none">
       </div>
     </div>
 
