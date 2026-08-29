@@ -741,25 +741,15 @@
     if (window.showSaveFilePicker) {
       try {
         let handle = currentFileHandle;
-
         if (handle) {
-          // There's already a working file — ask whether to overwrite it or save as a new one.
-          const overwrite = confirm(
-            `Overwrite "${currentFileName}"?\n\nClick OK to overwrite this file, or Cancel to save as a new file.`
-          );
-          if (!overwrite) {
-            handle = null; // fall through to Save As below
-          } else {
-            // Reusing the handle — make sure we still have write access.
-            const perm = await handle.queryPermission({ mode: 'readwrite' });
-            if (perm !== 'granted' && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') {
-              handle = null; // permission lost — fall through and ask for a location again
-            }
+          // Reusing a handle from an earlier save/load — make sure we still have write access.
+          const perm = await handle.queryPermission({ mode: 'readwrite' });
+          if (perm !== 'granted' && (await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') {
+            handle = null; // permission lost — fall through and ask for a location again
           }
         }
-
         if (!handle) {
-          // No working file yet, or the user chose "save as new" — ask where/what to call it.
+          // First save (or no reusable handle) — ask where to save and what to call it.
           const suggestedName = `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
           handle = await window.showSaveFilePicker({
             suggestedName,
@@ -781,7 +771,7 @@
     // (and iOS/Firefox) always takes, since that API is desktop-only. There's no real file
     // handle to overwrite here, so this just re-downloads using the same filename every time
     // once one has been chosen, which is as close to "save to the same file" as the platform
-    // allows — no extra prompt needed.
+    // allows.
     const suggestedName = currentFileName || `Monthly Expense - ${formatMonth(currentMonth)}.csv`;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
