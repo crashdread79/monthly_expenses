@@ -955,9 +955,11 @@
   async function pickAndLoadFile() {
     if (window.showOpenFilePicker) {
       try {
-        const [handle] = await window.showOpenFilePicker({
-          types: [{ description: 'CSV file', accept: { 'text/csv': ['.csv'] } }]
-        });
+        // No `types` filter here on purpose — the OS-level picker (Android's Storage
+        // Access Framework in particular) grays out non-matching files even with
+        // excludeAcceptAllOption left at its default. Showing everything unfiltered
+        // avoids that; applyLoadedData() validates the content is actually ours.
+        const [handle] = await window.showOpenFilePicker();
         const file = await handle.getFile();
         await loadFile(file, handle);
         return;
